@@ -1,0 +1,19 @@
+name: Deploy Cloud Function - Send Client Email
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Deploy Cloud Function
+        run: |
+          gcloud functions deploy sendClientEmail             --gen2             --runtime=nodejs18             --region=${{ secrets.GCP_REGION }}             --entry-point=sendClientEmail             --trigger-http             --service-account=${{ secrets.GCP_SA_EMAIL }}             --set-env-vars=SENDGRID_API_KEY=${{ secrets.SENDGRID_API_KEY }},SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}

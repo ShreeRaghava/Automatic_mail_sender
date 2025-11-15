@@ -1,0 +1,115 @@
+{
+  "flow_id": "email-sender-flow-v1",
+  "metadata": {
+    "name": "Automated Email Sender (Opal)",
+    "description": "Webhook -> Prepare email payload -> Call Cloud Function -> Success / Error handling",
+    "created_by": "automation-team",
+    "version": "1.0"
+  },
+  "nodes": [
+    {
+      "id": "webhook_entry",
+      "type": "webhook",
+      "name": "Entry Webhook - Email Trigger",
+      "config": {
+        "path": "/opal/webhook/send-email",
+        "method": "POST",
+        "validate_signature": false
+      },
+      "next": "normalize"
+    },
+    {
+      "id": "normalize",
+      "type": "function",
+      "name": "Normalize Payload",
+      "config": {
+        "script": "/* Extract fields: to, subject, html, text, client_id */"
+      },
+      "next": "prepare_payload"
+    },
+    {
+      "id": "prepare_payload",
+      "type": "transform",
+      "name": "Prepare Cloud Function Payload",
+      "config": {
+        "template": {
+          "to": "{{to}}",
+          "subject": "{{subject}}",
+          "html": "{{html}}",
+          "text": "{{text}}",
+          "client_id": "{{client_id}}"
+        }
+      },
+      "next": "call_function"
+    },
+    {
+      "id": "call_function",
+      "type": "http_request",
+      "name": "Call sendClientEmail Cloud Function",
+      "config": {
+        "method": "POST",
+        "url": "{{CLOUD_FUNCTION_URL}}",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{{payload}}",
+        "retries": 2,
+        "timeout_ms": 5000
+      },
+      "next": "parse_response"
+    },
+    {
+      "id": "parse_response",
+      "type": "transform",
+      "name": "Parse Response",
+      "config": {
+        "script": "/* Set result = response.status */"
+      },
+      "next": "switch_result"
+    },
+    {
+      "id": "switch_result",
+      "type": "switch",
+      "name": "Evaluate Result",
+      "config": {
+        "cases": [
+          {
+            "condition": "result == 'ok'",
+            "target": "success"
+          },
+          {
+            "condition": "result == 'error'",
+            "target": "error"
+          }
+        ],
+        "default": "error"
+      }
+    },
+    {
+      "id": "success",
+      "type": "send_message",
+      "name": "Success Message",
+      "config": {
+        "channel": "internal",
+        "template": "Email sent to {{to}} (subject: {{subject}})."
+      },
+      "next": "end"
+    },
+    {
+      "id": "error",
+      "type": "send_message",
+      "name": "Error Message",
+      "config": {
+        "channel": "internal",
+        "template": "Failed to send email to {{to}}. See logs."
+      },
+      "next": "end"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "name": "End Flow",
+      "config": {}
+    }
+  ]
+}
